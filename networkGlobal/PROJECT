@@ -1,0 +1,7 @@
+domain: core.gardener.cloud
+repo: gardener/networkGlobal
+resources:
+- group: core
+  kind: NetworkGlobal
+  version: v1
+version: "2"
