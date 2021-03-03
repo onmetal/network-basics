@@ -1,0 +1,7 @@
+apiVersion: core.core.gardener.cloud/v1
+kind: NetworkGlobal
+metadata:
+  name: networkglobal-sample
+spec:
+  # Add fields here
+  foo: bar
