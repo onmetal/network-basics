@@ -27,9 +27,8 @@ import (
 type NetworkGlobalSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of NetworkGlobal. Edit NetworkGlobal_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
 }
 
 // NetworkGlobalStatus defines the observed state of NetworkGlobal

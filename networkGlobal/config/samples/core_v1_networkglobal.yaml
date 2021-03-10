@@ -3,5 +3,5 @@ kind: NetworkGlobal
 metadata:
   name: networkglobal-sample
 spec:
-  # Add fields here
-  foo: bar
+  id: customer1
+  name: customer1 cluster

@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gardener-network-global-controller
+  namespace: gardener-dev
+spec:
+  selector:
+    matchLabels:
+      app: gardener-network-global-controller
+  template:
+    metadata:
+      labels:
+        app: gardener-network-global-controller
+    spec:
+      serviceAccountName: gardener-network-global-controller
+      containers:
+      - name: network-global-controller
+        image: mtr.external.otc.telekomcloud.com/mk8s/gardener-network-basic:networkGlobal-v1
+        imagePullPolicy: Always
