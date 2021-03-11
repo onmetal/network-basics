@@ -68,10 +68,13 @@ func (r *NetworkGlobalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	}
 
 	// Add finalizer on the NetworkGlobal object if not added already.
-	err := r.addNetworkGlobalFinalizer()
-	if err != nil {
-		log.Error(err, "Can't add the finalizer", "NetworkGlobal", r.NetworkGlobal.Name)
-		return ctrl.Result{}, err
+	if r.NetworkGlobal.DeletionTimestamp.IsZero() {
+		err := r.addNetworkGlobalFinalizer()
+		log.Info("Adding finalizer", "NetworkGlobal", req)
+		if err != nil {
+			log.Error(err, "Can't add the finalizer", "NetworkGlobal", r.NetworkGlobal.Name)
+			return ctrl.Result{}, err
+		}
 	}
 
 	// Deletion Flow
@@ -79,7 +82,7 @@ func (r *NetworkGlobalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 		log.Info("Deleting the NetworkGlobal", "Name", r.NetworkGlobal.Name)
 
 		// Remove the finalizer
-		err = r.deleteNetworkGlobalFinalizers()
+		err := r.deleteNetworkGlobalFinalizers()
 		if err != nil {
 			log.Error(err, "Couldn't delete the finalizer", "NetworkGlobal", r.NetworkGlobal.Name)
 			return ctrl.Result{}, err
