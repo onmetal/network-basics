@@ -49,3 +49,24 @@ func (r *NetworkGlobalReconciler) updateNetworkGlobalFinalizers(finalizers []str
 	r.NetworkGlobal = clone
 	return nil
 }
+
+// deleteNetworkGlobalFinalizers deletes the finalizer from the NetworkGlobal.
+func (r *NetworkGlobalReconciler) deleteNetworkGlobalFinalizers() error {
+	ctx := context.Background()
+	nGlobal := &v1.NetworkGlobal{}
+	err := r.Get(ctx, r.Request.NamespacedName, nGlobal)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	clone := nGlobal.DeepCopy()
+
+	if finalizers := sets.NewString(clone.Finalizers...); finalizers.Has(NetworkGlobalFinalizerName) {
+		finalizers.Delete(NetworkGlobalFinalizerName)
+		err := r.updateNetworkGlobalFinalizers(finalizers.List())
+		if err != nil {
+			return client.IgnoreNotFound(err)
+		}
+	}
+	return nil
+}

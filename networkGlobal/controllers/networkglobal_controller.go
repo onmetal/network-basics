@@ -77,6 +77,15 @@ func (r *NetworkGlobalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	// Deletion Flow
 	if !r.NetworkGlobal.DeletionTimestamp.IsZero() {
 		log.Info("Deleting the NetworkGlobal", "Name", r.NetworkGlobal.Name)
+
+		// Remove the finalizer
+		err = r.deleteNetworkGlobalFinalizers()
+		if err != nil {
+			log.Error(err, "Couldn't delete the finalizer", "NetworkGlobal", r.NetworkGlobal.Name)
+			return ctrl.Result{}, err
+		}
+		log.V(0).Info("Successfully deleted the NetworkGlobal", "Name", r.NetworkGlobal.Name)
+		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil

@@ -1,7 +1,7 @@
 apiVersion: core.core.gardener.cloud/v1
 kind: NetworkGlobal
 metadata:
-  name: networkglobal-sample
+  name: customer1
 spec:
   id: customer1
   name: customer1 cluster
