@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+
 	v1 "gardener/networkGlobal/api/v1"
 
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -12,6 +13,7 @@ import (
 func (r NetworkGlobalReconciler) addNetworkGlobalFinalizer() error {
 	ctx := context.Background()
 	nGlobal := &v1.NetworkGlobal{}
+
 	err := r.Get(ctx, r.Request.NamespacedName, nGlobal)
 	if err != nil {
 		return client.IgnoreNotFound(err)
@@ -20,6 +22,7 @@ func (r NetworkGlobalReconciler) addNetworkGlobalFinalizer() error {
 	clone := nGlobal.DeepCopy()
 
 	if finalizers := sets.NewString(clone.Finalizers...); !finalizers.Has(NetworkGlobalFinalizerName) {
+		r.Log.Info("Adding finalizer")
 		finalizers.Insert(NetworkGlobalFinalizerName)
 		err := r.updateNetworkGlobalFinalizers(finalizers.List())
 		if err != nil {

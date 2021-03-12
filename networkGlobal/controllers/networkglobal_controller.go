@@ -52,6 +52,7 @@ type NetworkGlobalReconciler struct {
 
 func (r *NetworkGlobalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
+	r.Request = req
 	log := r.Log.WithValues("networkglobal", req.NamespacedName)
 
 	reqLogger := r.Log.WithValues("Request.Name", req.Name)
@@ -70,7 +71,6 @@ func (r *NetworkGlobalReconciler) Reconcile(req ctrl.Request) (ctrl.Result, erro
 	// Add finalizer on the NetworkGlobal object if not added already.
 	if r.NetworkGlobal.DeletionTimestamp.IsZero() {
 		err := r.addNetworkGlobalFinalizer()
-		log.Info("Adding finalizer", "NetworkGlobal", req)
 		if err != nil {
 			log.Error(err, "Can't add the finalizer", "NetworkGlobal", r.NetworkGlobal.Name)
 			return ctrl.Result{}, err
