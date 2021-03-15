@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: gardener-network-global-controller
+rules:
+- apiGroups:
+  - core.core.gardener.cloud
+  resources:
+  - networkglobals
+  verbs:
+  - '*'
+

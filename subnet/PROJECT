@@ -1,0 +1,7 @@
+domain: gardener.cloud
+repo: gardener/subnet
+resources:
+- group: core
+  kind: Subnet
+  version: v1
+version: "2"

@@ -1,0 +1,12 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: gardener-network-global-controller
+subjects:
+- kind: ServiceAccount
+  name: gardener-network-global-controller
+  namespace: gardener-dev
+roleRef:
+  kind: ClusterRole
+  name: gardener-network-global-controller
+  apiGroup: rbac.authorization.k8s.io

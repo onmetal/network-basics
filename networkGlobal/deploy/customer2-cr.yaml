@@ -1,0 +1,8 @@
+apiVersion: core.core.gardener.cloud/v1
+kind: NetworkGlobal
+metadata:
+  name: customer2
+  namespace: gardener-dev
+spec:
+  id: customer2
+  name: customer2 cluster
