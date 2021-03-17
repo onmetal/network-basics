@@ -3,5 +3,9 @@ kind: Subnet
 metadata:
   name: subnet-sample
 spec:
-  # Add fields here
-  foo: bar
+  ID: sub1234
+  Type: IPv4
+  cidr: 10.12.34.0/24
+  networkGlobalID: customer1
+  PartitionID: Frankfurt
+  subnetParentId: topsubnet

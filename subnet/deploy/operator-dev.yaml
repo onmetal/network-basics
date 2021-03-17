@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gardener-subnet-controller
+  namespace: gardener-dev
+spec:
+  selector:
+    matchLabels:
+      app: gardener-subnet-controller
+  template:
+    metadata:
+      labels:
+        app: gardener-subnet-controller
+    spec:
+      serviceAccountName: gardener-subnet-controller
+      containers:
+      - name: subnet-controller
+        image: mtr.external.otc.telekomcloud.com/mk8s/gardener-network-basic:subnet-v1
+        imagePullPolicy: Always

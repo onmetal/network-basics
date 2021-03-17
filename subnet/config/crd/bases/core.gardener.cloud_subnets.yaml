@@ -1,0 +1,78 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.3.0
+  creationTimestamp: null
+  name: subnets.core.gardener.cloud
+spec:
+  group: core.gardener.cloud
+  names:
+    kind: Subnet
+    listKind: SubnetList
+    plural: subnets
+    singular: subnet
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      description: Subnet is the Schema for the subnets API
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: SubnetSpec defines the desired state of Subnet
+          properties:
+            ID:
+              description: ID represents the subnet id
+              type: string
+            cidr:
+              description: CIDR represents the Ip Adress Range
+              type: string
+            networkGlobalID:
+              description: NetworkGlobal represents the network which belongs to the
+                subnet
+              type: string
+            partitionID:
+              description: PartiionID represents the location of the physical servers
+              type: string
+            subnetParentID:
+              description: SubnetParentID represents the parent of the subnet if present
+              type: string
+            type:
+              description: Type represents whether it is an IPv4 or IPv6
+              type: string
+          type: object
+        status:
+          description: SubnetStatus defines the observed state of Subnet
+          properties:
+            capacity:
+              description: Capacity represents the capacity of the subnet
+              type: integer
+            capacityLeft:
+              description: CapacityLeft represents the available capacity of the subnet
+              type: integer
+          type: object
+      type: object
+  version: v1
+  versions:
+  - name: v1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []

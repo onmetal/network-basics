@@ -25,17 +25,32 @@ import (
 
 // SubnetSpec defines the desired state of Subnet
 type SubnetSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// ID represents the subnet id
+	ID string `json:"ID,omitempty"`
 
-	// Foo is an example field of Subnet. Edit Subnet_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Type represents whether it is an IPv4 or IPv6
+	Type string `json:"type,omitempty"`
+
+	// CIDR represents the Ip Adress Range
+	CIDR string `json:"cidr,omitempty"`
+
+	// NetworkGlobal represents the network which belongs to the subnet
+	NetworkGlobalID string `json:"networkGlobalID,omitempty"`
+
+	// PartiionID represents the location of the physical servers
+	PartitionID string `json:"partitionID,omitempty"`
+
+	// SubnetParentID represents the parent of the subnet if present
+	SubnetParentID string `json:"subnetParentID,omitempty"`
 }
 
 // SubnetStatus defines the observed state of Subnet
 type SubnetStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Capacity represents the capacity of the subnet
+	Capacity int `json:"capacity,omitempty"`
+
+	// CapacityLeft represents the available capacity of the subnet
+	CapacityLeft int `json:"capacityLeft,omitempty"`
 }
 
 // +kubebuilder:object:root=true
