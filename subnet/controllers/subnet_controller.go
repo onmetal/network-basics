@@ -32,7 +32,7 @@ import (
 
 	corev1 "gardener/subnet/api/v1"
 
-	netGlo "github.com/onmetal/network-basics/blob/main/networkGlobal/api/vi"
+	netGlo "gardener/networkGlobal/api/v1"
 )
 
 const (
@@ -103,11 +103,14 @@ func (r *SubnetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&corev1.Subnet{}).
 		Watches(&source.Kind{Type: &corev1.Subnet{}}, handler.Funcs{
 			CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
+				ctx := context.Background()
 
-				if err := r.Get(ctx, req.NamespacedName, r.Subnet); err != nil {
-					log.Info("unable to find NetworkGlobalID", "Subnet", req, "Error", err)
-					return err
+				netGloList := &netGlo.NetworkGlobalList{}
+
+				if err := r.List(ctx, netGloList.DeepCopyObject(), &client.ListOptions{}); err != nil {
+					r.Log.Info("unable to find NetworkGlobalID", "Error", err)
 				}
+				r.Log.Info("NetGloList danach: ", "Name", *netGloList)
 
 				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
 					Name:      e.Meta.GetName(),

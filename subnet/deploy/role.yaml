@@ -10,4 +10,10 @@ rules:
   - subnets
   verbs:
   - '*'
+- apiGroups:
+  - core.core.gardener.cloud
+  resources:
+  - networkglobals
+  verbs:
+  - '*'
 

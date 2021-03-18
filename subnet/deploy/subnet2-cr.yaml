@@ -1,7 +1,7 @@
 apiVersion: core.gardener.cloud/v1
 kind: Subnet
 metadata:
-  name: subnet1
+  name: subnet2
 spec:
   ID: sub1234
   Type: IPv4
