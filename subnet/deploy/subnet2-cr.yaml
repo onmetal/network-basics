@@ -6,6 +6,6 @@ spec:
   ID: sub1234
   Type: IPv4
   cidr: 10.12.34.0/24
-  networkGlobalID: customer1
+  networkGlobalID: customer2
   PartitionID: Frankfurt
   subnetParentId: topsubnet
