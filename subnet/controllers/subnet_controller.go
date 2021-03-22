@@ -22,13 +22,10 @@ import (
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	corev1 "gardener/subnet/api/v1"
 
@@ -59,7 +56,7 @@ func (r *SubnetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("subnet", req.NamespacedName)
 
 	reqLogger := r.Log.WithValues("Request.Name", req.Name)
-	reqLogger.Info("Reconciling Subnet")
+	reqLogger.Info("Reconciling Subnet Test")
 
 	r.Subnet = &corev1.Subnet{}
 
@@ -99,30 +96,30 @@ func (r *SubnetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 func (r *SubnetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
+	predicateFunctions := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			ctx := context.Background()
+			subnet := e.Object.(*corev1.Subnet)
+			netGloID := subnet.Spec.NetworkGlobalID
+			netGlobalObject := &netGlo.NetworkGlobal{}
+
+			// Validation if the entered NetworkGlobalId is existing
+			if err := r.Get(ctx, types.NamespacedName{Name: netGloID, Namespace: subnet.Namespace}, netGlobalObject); err != nil {
+				r.Log.Error(err, "NetworkGlobal resource doesn't exist", "Subnet", netGloID)
+				return false
+			} else {
+				r.Log.Info("Succesfully got the NetWorkGlobal Object", "Name", netGlobalObject.Name)
+				return true
+			}
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return false
+		},
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Subnet{}).
-		Watches(&source.Kind{Type: &corev1.Subnet{}}, handler.Funcs{
-			CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-				ctx := context.Background()
-
-				netGloList := &netGlo.NetworkGlobalList{}
-
-				if err := r.List(ctx, netGloList.DeepCopyObject(), &client.ListOptions{}); err != nil {
-					r.Log.Info("unable to find NetworkGlobalID", "Error", err)
-				}
-				r.Log.Info("NetGloList danach: ", "Name", *netGloList)
-
-				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
-					Name:      e.Meta.GetName(),
-					Namespace: e.Meta.GetNamespace(),
-				}})
-			},
-			DeleteFunc: func(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
-					Name:      e.Meta.GetName(),
-					Namespace: e.Meta.GetNamespace(),
-				}})
-			},
-		}).
+		WithEventFilter(predicateFunctions).
 		Complete(r)
+
 }
