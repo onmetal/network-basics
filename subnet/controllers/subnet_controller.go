@@ -18,12 +18,9 @@ package controllers
 
 import (
 	"context"
-	"errors"
 
 	"github.com/go-logr/logr"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -118,23 +115,4 @@ func (r *SubnetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&corev1.Subnet{}).
 		WithEventFilter(predicateFunctions).
 		Complete(r)
-
-}
-
-func (r *SubnetReconciler) IsNetworkGlobalIDValid(obj metav1.Object) (bool, error) {
-	ctx := context.Background()
-	subnet, ok := obj.(*corev1.Subnet)
-
-	if !ok {
-		return false, errors.New("not a subnet object")
-	}
-
-	netGloID := subnet.Spec.NetworkGlobalID
-	netGlobalObject := &netGlo.NetworkGlobal{}
-
-	if err := r.Get(ctx, types.NamespacedName{Name: netGloID, Namespace: subnet.Namespace}, netGlobalObject); err != nil {
-		return false, errors.New("not valid because resource with networkGlobalID doesn't exist")
-	}
-	r.Log.Info("Succesfully got the NetWorkGlobal Object", "Name", netGlobalObject.Name)
-	return true, nil
 }
