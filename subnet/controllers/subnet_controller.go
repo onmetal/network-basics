@@ -23,31 +23,96 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	corev1 "gardener/subnet/api/v1"
+
+	netGlo "gardener/networkGlobal/api/v1"
+)
+
+const (
+	SubnetFinalizerName = "core.gardener.cloud/networkglobal"
 )
 
 // SubnetReconciler reconciles a Subnet object
 type SubnetReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log           logr.Logger
+	Scheme        *runtime.Scheme
+	Manager       ctrl.Manager
+	Subnet        *corev1.Subnet
+	Request       ctrl.Request
+	NetworkGlobal netGlo.NetworkGlobal
 }
 
 // +kubebuilder:rbac:groups=core.gardener.cloud,resources=subnets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core.gardener.cloud,resources=subnets/status,verbs=get;update;patch
 
 func (r *SubnetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
-	_ = r.Log.WithValues("subnet", req.NamespacedName)
+	ctx := context.Background()
+	r.Request = req
+	log := r.Log.WithValues("subnet", req.NamespacedName)
 
-	// your logic here
+	reqLogger := r.Log.WithValues("Request.Name", req.Name)
+	reqLogger.Info("Reconciling Subnet Test")
+
+	r.Subnet = &corev1.Subnet{}
+
+	if err := r.Get(ctx, req.NamespacedName, r.Subnet); err != nil {
+		log.Info("unable to fetch Subnet", "Subnet", req, "Error", err)
+		// we'll ignore not-found errors, since they can't be fixed by an immediate
+		// requeue (we'll need to wait for a new notification), and we can get them
+		// on deleted requests.
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// Add finalizer on the Subnet object if not added already.
+	if r.Subnet.DeletionTimestamp.IsZero() {
+		err := r.addSubnetFinalizer()
+		if err != nil {
+			log.Error(err, "Can't add the finalizer", "Subnet", r.Subnet.Name)
+			return ctrl.Result{}, err
+		}
+	}
+
+	// Deletion Flow
+	if !r.Subnet.DeletionTimestamp.IsZero() {
+		log.Info("Deleting the Subnet", "Name", r.Subnet.Name)
+
+		// Remove the finalizer
+		err := r.deleteSubnetFinalizers()
+		if err != nil {
+			log.Error(err, "Couldn't delete the finalizer", "Subnet", r.Subnet.Name)
+			return ctrl.Result{}, err
+		}
+		log.V(0).Info("Successfully deleted the Subnet", "Name", r.Subnet.Name)
+		return ctrl.Result{}, nil
+	}
 
 	return ctrl.Result{}, nil
 }
 
 func (r *SubnetReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	predicateFunctions := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			subnet := e.Object.(*corev1.Subnet)
+
+			if ok, err := r.IsNetworkGlobalIDValid(subnet); !ok {
+				r.Log.Error(err, "NetworkGlobalID is invalid, resource doesn't exist", "Subnet", subnet.Spec.NetworkGlobalID)
+				// TODO: take some action when this is invalid
+				return false
+			}
+			return true
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return false
+		},
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Subnet{}).
+		WithEventFilter(predicateFunctions).
 		Complete(r)
 }
