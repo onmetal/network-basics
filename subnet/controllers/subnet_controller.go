@@ -27,23 +27,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	corev1 "gardener/subnet/api/v1"
-
-	netGlo "gardener/networkGlobal/api/v1"
 )
 
 const (
-	SubnetFinalizerName = "core.gardener.cloud/networkglobal"
+	SubnetFinalizerName  = "core.gardener.cloud/subnet"
+	LabelTreeDepthSuffix = ".tree/depth"
 )
 
 // SubnetReconciler reconciles a Subnet object
 type SubnetReconciler struct {
 	client.Client
-	Log           logr.Logger
-	Scheme        *runtime.Scheme
-	Manager       ctrl.Manager
-	Subnet        *corev1.Subnet
-	Request       ctrl.Request
-	NetworkGlobal netGlo.NetworkGlobal
+	Log     logr.Logger
+	Scheme  *runtime.Scheme
+	Manager ctrl.Manager
+	Subnet  *corev1.Subnet
+	Request ctrl.Request
 }
 
 // +kubebuilder:rbac:groups=core.gardener.cloud,resources=subnets,verbs=get;list;watch;create;update;patch;delete
@@ -101,6 +99,11 @@ func (r *SubnetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 			if ok, err := r.IsNetworkGlobalIDValid(subnet); !ok {
 				r.Log.Error(err, "NetworkGlobalID is invalid, resource doesn't exist", "Subnet", subnet.Spec.NetworkGlobalID)
+				// TODO: take some action when this is invalid
+				return false
+			}
+			if ok, err := r.addSubnetToTree(subnet); !ok {
+				r.Log.Error(err, "Integrity of the subnet is invalid", "Subnet", subnet)
 				// TODO: take some action when this is invalid
 				return false
 			}

@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"strconv"
 
 	netGlo "gardener/networkGlobal/api/v1"
 	corev1 "gardener/subnet/api/v1"
@@ -82,7 +83,6 @@ func (r *SubnetReconciler) deleteSubnetFinalizers() error {
 func (r *SubnetReconciler) IsNetworkGlobalIDValid(obj metav1.Object) (bool, error) {
 	ctx := context.Background()
 	subnet, ok := obj.(*corev1.Subnet)
-
 	if !ok {
 		return false, errors.New("not a subnet object")
 	}
@@ -94,5 +94,61 @@ func (r *SubnetReconciler) IsNetworkGlobalIDValid(obj metav1.Object) (bool, erro
 		return false, errors.New("not valid because resource with networkGlobalID doesn't exist")
 	}
 	r.Log.Info("Succesfully got the NetWorkGlobal Object", "Name", netGlobalObject.Name)
+	return true, nil
+}
+
+func (r *SubnetReconciler) addSubnetToTree(obj metav1.Object) (bool, error) {
+	ctx := context.Background()
+	subnet, ok := obj.(*corev1.Subnet)
+	if !ok {
+		return false, errors.New("not a subnet object")
+	}
+
+	clone := subnet.DeepCopy()
+
+	subnetParent := &corev1.Subnet{}
+	newLabels := make(map[string]string)
+	parentID := subnet.Spec.SubnetParentID
+
+	if parentID != "" {
+
+		if err := r.Get(ctx, types.NamespacedName{Name: parentID, Namespace: subnet.Namespace}, subnetParent); err != nil {
+			return false, errors.New("ParentID not valid because parent resource does not exist")
+		}
+		if ok, err := r.IsPartitionIDValid(*subnet, *subnetParent); !ok {
+			r.Log.Error(err, "PartitionID not valid", "Subnet", subnet.Spec.PartitionID)
+			return false, err
+		}
+		r.Log.Info("PartitionID valid", "Subnet", subnet.Spec.PartitionID)
+
+		newLabels[subnet.Name+LabelTreeDepthSuffix] = "0"
+		oldLables := subnetParent.GetLabels()
+		for key, element := range oldLables {
+			element, _ := strconv.Atoi(element)
+			element = element + 1
+			newLabels[key] = strconv.Itoa(element)
+		}
+	} else {
+		newLabels[subnet.Name+LabelTreeDepthSuffix] = "0"
+		newLabels[subnet.Spec.NetworkGlobalID+LabelTreeDepthSuffix] = "1"
+	}
+	clone.SetLabels(newLabels)
+
+	subnet.ObjectMeta = clone.ObjectMeta
+
+	err := r.Update(ctx, subnet)
+	if err != nil {
+		r.Log.Error(err, "update error", "Subnet", subnet.Name)
+		return false, err
+	}
+
+	r.Log.Info("Succesfully added the Subnet to the tree", "Name", subnet.Name)
+	return true, nil
+}
+
+func (r *SubnetReconciler) IsPartitionIDValid(subnet corev1.Subnet, subnetParent corev1.Subnet) (bool, error) {
+	if subnet.Spec.PartitionID != subnetParent.Spec.PartitionID {
+		return false, errors.New("PartitionID not valid because it doesn't matches the parent subnet PartitionID")
+	}
 	return true, nil
 }
