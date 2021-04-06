@@ -110,6 +110,13 @@ func (r *SubnetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
+			subnet := e.Object.(*corev1.Subnet)
+
+			if ok, err := r.IsSubnetLeafNode(subnet); !ok {
+				r.Log.Error(err, "Subnet can't be deleted because it has child subnets", "Subnet", subnet)
+				// TODO: take some action when this is invalid
+				return false
+			}
 			return false
 		},
 	}

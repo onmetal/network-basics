@@ -80,6 +80,7 @@ func (r *SubnetReconciler) deleteSubnetFinalizers() error {
 	return nil
 }
 
+// validates if the entered networkglobalID is a existing NetworkGlobal Object
 func (r *SubnetReconciler) IsNetworkGlobalIDValid(obj metav1.Object) (bool, error) {
 	ctx := context.Background()
 	subnet, ok := obj.(*corev1.Subnet)
@@ -151,4 +152,23 @@ func (r *SubnetReconciler) IsPartitionIDValid(subnet corev1.Subnet, subnetParent
 		return false, errors.New("PartitionID not valid because it doesn't matches the parent subnet PartitionID")
 	}
 	return true, nil
+}
+
+func (r *SubnetReconciler) IsSubnetLeafNode(obj metav1.Object) (bool, error) {
+	ctx := context.Background()
+	subnet, ok := obj.(*corev1.Subnet)
+	if !ok {
+		return false, errors.New("not a subnet object")
+	}
+
+	subnetList := &corev1.SubnetList{}
+	opts := []client.ListOption{
+		client.InNamespace(subnet.Namespace),
+		client.MatchingLabels{subnet.Name: `\d`},
+	}
+	if err := r.List(ctx, subnetList, opts...); err != nil {
+		r.Log.Info("Deletion accapted", "Name", subnetList)
+		return true, nil
+	}
+	return false, errors.New("not valid because subnet has childs")
 }
