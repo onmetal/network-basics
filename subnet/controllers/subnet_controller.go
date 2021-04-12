@@ -78,14 +78,19 @@ func (r *SubnetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if !r.Subnet.DeletionTimestamp.IsZero() {
 		log.Info("Deleting the Subnet", "Name", r.Subnet.Name)
 
-		// Remove the finalizer
-		err := r.deleteSubnetFinalizers()
-		if err != nil {
-			log.Error(err, "Couldn't delete the finalizer", "Subnet", r.Subnet.Name)
+		if ok, err := r.IsSubnetLeafNode(r.Subnet); !ok {
+			r.Log.Error(err, "Subnet can't be deleted because it has child subnets", "Subnet", r.Subnet.Name)
 			return ctrl.Result{}, err
+		} else {
+			// Remove the finalizer
+			err := r.deleteSubnetFinalizers()
+			if err != nil {
+				log.Error(err, "Couldn't delete the finalizer", "Subnet", r.Subnet.Name)
+				return ctrl.Result{}, err
+			}
+			log.V(0).Info("Successfully deleted the Subnet", "Name", r.Subnet.Name)
+			return ctrl.Result{}, nil
 		}
-		log.V(0).Info("Successfully deleted the Subnet", "Name", r.Subnet.Name)
-		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -110,13 +115,6 @@ func (r *SubnetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			return true
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
-			subnet := e.Object.(*corev1.Subnet)
-
-			if ok, err := r.IsSubnetLeafNode(subnet); !ok {
-				r.Log.Error(err, "Subnet can't be deleted because it has child subnets", "Subnet", subnet)
-				// TODO: take some action when this is invalid
-				return false
-			}
 			return false
 		},
 	}
