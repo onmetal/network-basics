@@ -63,6 +63,12 @@ spec:
             capacityLeft:
               description: CapacityLeft represents the available capacity of the subnet
               type: integer
+            messages:
+              description: Messages should display importent status messages for the
+                ressource
+              items:
+                type: string
+              type: array
           type: object
       type: object
   version: v1

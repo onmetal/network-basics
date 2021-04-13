@@ -92,7 +92,9 @@ func (r *SubnetReconciler) IsNetworkGlobalIDValid(obj metav1.Object) (bool, erro
 	netGlobalObject := &netGlo.NetworkGlobal{}
 
 	if err := r.Get(ctx, types.NamespacedName{Name: netGloID, Namespace: subnet.Namespace}, netGlobalObject); err != nil {
-		return false, errors.New("not valid because resource with networkGlobalID doesn't exist")
+		err = errors.New("Subnet is not valid because resource with networkGlobalID doesn't exist")
+		subnet.Status.Messages = append(subnet.Status.Messages, err.Error())
+		return false, err
 	}
 	r.Log.Info("Succesfully got the NetWorkGlobal Object", "Name", netGlobalObject.Name)
 	return true, nil
@@ -164,11 +166,14 @@ func (r *SubnetReconciler) IsSubnetLeafNode(obj metav1.Object) (bool, error) {
 	subnetList := &corev1.SubnetList{}
 	opts := []client.ListOption{
 		client.InNamespace(subnet.Namespace),
-		client.MatchingLabels{subnet.Name: `\d`},
+		client.MatchingLabels{subnet.Name + LabelTreeDepthSuffix: "1"},
 	}
-	if err := r.List(ctx, subnetList, opts...); err != nil {
-		r.Log.Info("Deletion accapted", "Name", subnetList)
-		return true, nil
+	r.List(ctx, subnetList, opts...)
+	if subnetList != nil {
+		err := errors.New("not valid because subnet has childs")
+		subnet.Status.Messages = append(subnet.Status.Messages, err.Error())
+		return false, err
 	}
-	return false, errors.New("not valid because subnet has childs")
+	r.Log.Info("Deletion accapted", "Name", subnetList)
+	return true, nil
 }

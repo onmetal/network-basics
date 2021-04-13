@@ -51,6 +51,9 @@ type SubnetStatus struct {
 
 	// CapacityLeft represents the available capacity of the subnet
 	CapacityLeft int `json:"capacityLeft,omitempty"`
+
+	// Messages should display importent status messages for the ressource
+	Messages []string `json:"messages,omitempty"`
 }
 
 // +kubebuilder:object:root=true

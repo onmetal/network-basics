@@ -110,6 +110,7 @@ func (r *SubnetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			if ok, err := r.addSubnetToTree(subnet); !ok {
 				r.Log.Error(err, "Integrity of the subnet is invalid", "Subnet", subnet)
 				// TODO: take some action when this is invalid
+				subnet.Status.Messages = append(subnet.Status.Messages, err.Error())
 				return false
 			}
 			return true
