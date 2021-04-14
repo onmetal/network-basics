@@ -74,13 +74,21 @@ func (r *SubnetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 
+	// TODO
+	// testing cidr operations
+	if err := r.checkIPIntegrity(r.Subnet); err != nil {
+		log.Error(err, "can't get IP range", "Subnet", r.Subnet.Name)
+	}
+
 	// Deletion Flow
 	if !r.Subnet.DeletionTimestamp.IsZero() {
 		log.Info("Deleting the Subnet", "Name", r.Subnet.Name)
 
 		if ok, err := r.IsSubnetLeafNode(r.Subnet); !ok {
 			r.Log.Error(err, "Subnet can't be deleted because it has child subnets", "Subnet", r.Subnet.Name)
-			return ctrl.Result{}, err
+			// TODO resource can't be deleted
+			//return ctrl.Result{}, err
+
 		} else {
 			// Remove the finalizer
 			err := r.deleteSubnetFinalizers()
