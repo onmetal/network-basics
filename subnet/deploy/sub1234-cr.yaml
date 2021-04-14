@@ -1,11 +1,11 @@
 apiVersion: core.gardener.cloud/v1
 kind: Subnet
 metadata:
-  name: subnet1
+  name: sub1234
 spec:
   ID: sub1234
   Type: IPv4
   cidr: 10.12.34.0/24
   networkGlobalID: customer1
-  PartitionID: Frankfurt
-  subnetParentId: topsubnet
+  partitionID: Frankfurt
+  subnetParentID: topsubnet

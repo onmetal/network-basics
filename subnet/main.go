@@ -26,6 +26,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	netGlo "gardener/networkGlobal/api/v1"
 	corev1 "gardener/subnet/api/v1"
 	"gardener/subnet/controllers"
 	// +kubebuilder:scaffold:imports
@@ -40,6 +41,7 @@ func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
 	_ = corev1.AddToScheme(scheme)
+	_ = netGlo.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 

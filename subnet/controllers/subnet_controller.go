@@ -21,33 +21,27 @@ import (
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	corev1 "gardener/subnet/api/v1"
-
-	netGlo "github.com/onmetal/network-basics/blob/main/networkGlobal/api/vi"
 )
 
 const (
-	SubnetFinalizerName = "core.gardener.cloud/networkglobal"
+	SubnetFinalizerName  = "core.gardener.cloud/subnet"
+	LabelTreeDepthSuffix = ".tree/depth"
 )
 
 // SubnetReconciler reconciles a Subnet object
 type SubnetReconciler struct {
 	client.Client
-	Log           logr.Logger
-	Scheme        *runtime.Scheme
-	Manager       ctrl.Manager
-	Subnet        *corev1.Subnet
-	Request       ctrl.Request
-	NetworkGlobal netGlo.NetworkGlobal
+	Log     logr.Logger
+	Scheme  *runtime.Scheme
+	Manager ctrl.Manager
+	Subnet  *corev1.Subnet
+	Request ctrl.Request
 }
 
 // +kubebuilder:rbac:groups=core.gardener.cloud,resources=subnets,verbs=get;list;watch;create;update;patch;delete
@@ -59,7 +53,7 @@ func (r *SubnetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	log := r.Log.WithValues("subnet", req.NamespacedName)
 
 	reqLogger := r.Log.WithValues("Request.Name", req.Name)
-	reqLogger.Info("Reconciling Subnet")
+	reqLogger.Info("Reconciling Subnet Test")
 
 	r.Subnet = &corev1.Subnet{}
 
@@ -80,18 +74,31 @@ func (r *SubnetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 
+	// TODO
+	// testing cidr operations
+	if err := r.checkIPIntegrity(r.Subnet); err != nil {
+		log.Error(err, "can't get IP range", "Subnet", r.Subnet.Name)
+	}
+
 	// Deletion Flow
 	if !r.Subnet.DeletionTimestamp.IsZero() {
 		log.Info("Deleting the Subnet", "Name", r.Subnet.Name)
 
-		// Remove the finalizer
-		err := r.deleteSubnetFinalizers()
-		if err != nil {
-			log.Error(err, "Couldn't delete the finalizer", "Subnet", r.Subnet.Name)
-			return ctrl.Result{}, err
+		if ok, err := r.IsSubnetLeafNode(r.Subnet); !ok {
+			r.Log.Error(err, "Subnet can't be deleted because it has child subnets", "Subnet", r.Subnet.Name)
+			// TODO resource can't be deleted
+			//return ctrl.Result{}, err
+
+		} else {
+			// Remove the finalizer
+			err := r.deleteSubnetFinalizers()
+			if err != nil {
+				log.Error(err, "Couldn't delete the finalizer", "Subnet", r.Subnet.Name)
+				return ctrl.Result{}, err
+			}
+			log.V(0).Info("Successfully deleted the Subnet", "Name", r.Subnet.Name)
+			return ctrl.Result{}, nil
 		}
-		log.V(0).Info("Successfully deleted the Subnet", "Name", r.Subnet.Name)
-		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -99,27 +106,30 @@ func (r *SubnetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 func (r *SubnetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
+	predicateFunctions := predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			subnet := e.Object.(*corev1.Subnet)
+
+			if ok, err := r.IsNetworkGlobalIDValid(subnet); !ok {
+				r.Log.Error(err, "NetworkGlobalID is invalid, resource doesn't exist", "Subnet", subnet.Spec.NetworkGlobalID)
+				// TODO: take some action when this is invalid
+				return false
+			}
+			if ok, err := r.addSubnetToTree(subnet); !ok {
+				r.Log.Error(err, "Integrity of the subnet is invalid", "Subnet", subnet)
+				// TODO: take some action when this is invalid
+				subnet.Status.Messages = append(subnet.Status.Messages, err.Error())
+				return false
+			}
+			return true
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return false
+		},
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Subnet{}).
-		Watches(&source.Kind{Type: &corev1.Subnet{}}, handler.Funcs{
-			CreateFunc: func(e event.CreateEvent, q workqueue.RateLimitingInterface) {
-
-				if err := r.Get(ctx, req.NamespacedName, r.Subnet); err != nil {
-					log.Info("unable to find NetworkGlobalID", "Subnet", req, "Error", err)
-					return err
-				}
-
-				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
-					Name:      e.Meta.GetName(),
-					Namespace: e.Meta.GetNamespace(),
-				}})
-			},
-			DeleteFunc: func(e event.DeleteEvent, q workqueue.RateLimitingInterface) {
-				q.Add(reconcile.Request{NamespacedName: types.NamespacedName{
-					Name:      e.Meta.GetName(),
-					Namespace: e.Meta.GetNamespace(),
-				}})
-			},
-		}).
+		WithEventFilter(predicateFunctions).
 		Complete(r)
 }
