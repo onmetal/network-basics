@@ -8,6 +8,8 @@ rules:
   - core.gardener.cloud
   resources:
   - subnets
+  - subnets/status
+  - subnets/finalizer
   verbs:
   - '*'
 - apiGroups:

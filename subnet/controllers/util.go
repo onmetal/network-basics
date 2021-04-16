@@ -80,6 +80,26 @@ func (r *SubnetReconciler) deleteSubnetFinalizers() error {
 	return nil
 }
 
+func (r *SubnetReconciler) updateSubnetStatusMessages(msgs []string) error {
+	ctx := context.Background()
+	subnet := &v1.Subnet{}
+	err := r.Get(ctx, r.Request.NamespacedName, subnet)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	clone := subnet.DeepCopy()
+	clone.Status.Messages = msgs
+
+	err = r.Patch(ctx, clone, client.MergeFrom(subnet))
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	r.Subnet = clone
+	return nil
+}
+
 // validates if the entered networkglobalID is a existing NetworkGlobal Object
 func (r *SubnetReconciler) IsNetworkGlobalIDValid(obj metav1.Object) (bool, error) {
 	ctx := context.Background()
@@ -168,12 +188,15 @@ func (r *SubnetReconciler) IsSubnetLeafNode(obj metav1.Object) (bool, error) {
 		client.InNamespace(subnet.Namespace),
 		client.MatchingLabels{subnet.Name + LabelTreeDepthSuffix: "1"},
 	}
+
 	r.List(ctx, subnetList, opts...)
-	if subnetList != nil {
+
+	if len(subnetList.Items) > 0 {
+		r.Log.Info("Deletion declined", "Name", subnetList)
 		err := errors.New("not valid because subnet has childs")
 		subnet.Status.Messages = append(subnet.Status.Messages, err.Error())
 		return false, err
 	}
-	r.Log.Info("Deletion accapted", "Name", subnetList)
+	r.Log.Info("Deletion accapted", "Name", subnetList.ListMeta)
 	return true, nil
 }
