@@ -2,10 +2,13 @@ package controllers
 
 import (
 	"context"
+	"strconv"
+
 	//"errors"
-	"cidr"
 	"fmt"
 	corev1 "gardener/subnet/api/v1"
+	v1 "gardener/subnet/api/v1"
+	"go-cidr/cidr"
 	"net"
 
 	"github.com/pkg/errors"
@@ -15,13 +18,18 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-func (r SubnetReconciler) checkIPIntegrity(obj metav1.Object) error {
-	//log := r.Log.WithValues("subnet getIPRange", r.Subnet.Name)
-
+func (r SubnetReconciler) checkIPIntegrity(obj metav1.Object) (bool, error) {
+	//log := r.Log.WithValues("checkIPIntegrity", r.Subnet.Name)
+	r.Log.Info("we are here")
 	// just do it once here, so you don't have to do it in each method
 	// you should also apply it to the util
 	ctx := context.Background()
-	subnet, _ := obj.(*corev1.Subnet)
+	subnet, ok := obj.(*corev1.Subnet)
+	if !ok {
+		return false, errors.New("not a subnet object")
+	}
+
+	r.Log.Info("before the if statement")
 
 	// TODO
 	// add logs
@@ -34,40 +42,73 @@ func (r SubnetReconciler) checkIPIntegrity(obj metav1.Object) error {
 		subnetParent := &corev1.Subnet{}
 		parentID := subnet.Spec.SubnetParentID
 		if err := r.Get(ctx, types.NamespacedName{Name: parentID, Namespace: subnet.Namespace}, subnetParent); err != nil {
-			return errors.New("ParentID not valid because parent resource does not exist")
+			return false, errors.New("ParentID not valid because parent resource does not exist")
 		}
 
+		//log.Info("validate cidr")
+		ipSubnet, ipnetSubnet, _ := validateCidr(subnet.Spec.CIDR)
+		_, ipnetSubnetParent, _ := validateCidr(subnetParent.Spec.CIDR)
+
 		// check if subnet cidr range fits in parent cidr range
-		ipNetSubnet, err := checkParentCidrRange(subnet, subnetParent)
-		if err != nil {
-			return err
+		//log.Info("check parent cidr range")
+		if err := checkParentCidrRange(ipSubnet, ipnetSubnetParent); err != nil {
+			return false, err
 		}
 
 		// get the subnet cidr ranges from the same level of the subtree
+		//log.Info("get subtree level cidr ranges")
 		cidrnets, err := r.getSubtreeLevelCidrRanges(subnet)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		// verifies that none of cidr blocks overlap
-		err = validateCidrOverlap(ipNetSubnet, cidrnets)
+		//log.Info("validate cidr overlap")
+		err = validateCidrOverlap(ipnetSubnet, cidrnets)
 		if err != nil {
-			return err
+			return false, err
+		}
+
+		// update subnet status
+		//log.Info("update subnet status")
+		if err := r.updateSubnetStatusCapacity(ipnetSubnet.Mask.String()); err != nil {
+			return false, err
+		}
+
+	} else {
+
+		//log.Info("validate cidr")
+		_, ipnetSubnet, _ := validateCidr(subnet.Spec.CIDR)
+
+		// get the subnet cidr ranges from the same level of the subtree
+		//log.Info("get subtree level cidr ranges")
+		cidrnets, err := r.getSubtreeLevelCidrRanges(subnet)
+		if err != nil {
+			return false, err
+		}
+
+		// verifies that none of cidr blocks overlap
+		//log.Info("validate cidr overlap")
+		err = validateCidrOverlap(ipnetSubnet, cidrnets)
+		if err != nil {
+			return false, err
+		}
+
+		// update subnet status
+		//log.Info("update subnet status")
+		if err := r.updateSubnetStatusCapacity(ipnetSubnet.Mask.String()); err != nil {
+			return false, err
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
-func checkParentCidrRange(subnet *corev1.Subnet, subnetParent *corev1.Subnet) (*net.IPNet, error) {
-	ipSubnet, ipnetSubnet, _ := validateCidr(subnet.Spec.CIDR)
-	_, ipnetSubnetParent, _ := validateCidr(subnetParent.Spec.CIDR)
-
+func checkParentCidrRange(ipSubnet net.IP, ipnetSubnetParent *net.IPNet) error {
 	if ipnetSubnetParent.Contains(ipSubnet) {
-		return ipnetSubnet, errors.New("Subnet CIDR range does not fit in parent subnet CIDR range")
+		return errors.New("Subnet CIDR range does not fit in parent subnet CIDR range")
 	}
-
-	return ipnetSubnet, nil
+	return nil
 }
 
 func validateCidr(cidr string) (net.IP, *net.IPNet, error) {
@@ -96,8 +137,10 @@ func (r SubnetReconciler) getSubtreeLevelCidrRanges(subnet *corev1.Subnet) ([]*n
 		}
 	}
 	// TODO
-	// add error Managegement
-	r.List(context.Background(), subnetList, opts...)
+	// What happens when you are empty?
+	if err := r.List(context.Background(), subnetList, opts...); err != nil {
+		return cidrnets, err
+	}
 
 	// get each cidr range from the siblings and transform them to IPNet
 	for _, sn := range subnetList.Items {
@@ -121,5 +164,57 @@ func validateCidrOverlap(ipNetSubnet *net.IPNet, cidrnets []*net.IPNet) error {
 			return errors.Wrap(fmt.Errorf("Subnets CIDR overlaps with CIDR %s", cidrnet), "CIDR overlap validation")
 		}
 	}
+	return nil
+}
+
+func (r *SubnetReconciler) updateSubnetStatusCapacity(mask string) error {
+	ctx := context.Background()
+	subnet := &v1.Subnet{}
+	err := r.Get(ctx, r.Request.NamespacedName, subnet)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	clone := subnet.DeepCopy()
+
+	// TODO
+	// differentiate between ipv4 and ipv6
+	// remove magic numbers
+	var capacity int
+	bits, _ := strconv.Atoi(mask)
+	if subnet.Spec.Type == "ipv4" {
+		capacity = 32 - bits
+	} else {
+		capacity = 128 - bits
+	}
+
+	clone.Status.Capacity = capacity
+
+	err = r.Patch(ctx, clone, client.MergeFrom(subnet))
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	r.Subnet = clone
+	return nil
+}
+
+func (r *SubnetReconciler) updateSubnetStatusCapacityLeft(msgs []string) error {
+	ctx := context.Background()
+	subnet := &v1.Subnet{}
+	err := r.Get(ctx, r.Request.NamespacedName, subnet)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	clone := subnet.DeepCopy()
+	clone.Status.Messages = msgs
+
+	err = r.Patch(ctx, clone, client.MergeFrom(subnet))
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	r.Subnet = clone
 	return nil
 }

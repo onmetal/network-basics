@@ -104,15 +104,22 @@ func (r *SubnetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		CreateFunc: func(e event.CreateEvent) bool {
 			subnet := e.Object.(*corev1.Subnet)
 
+			r.Log.Info("SetupWithManager - IsNetworkGlobalIDValid")
 			if ok, err := r.IsNetworkGlobalIDValid(subnet); !ok {
 				r.Log.Error(err, "NetworkGlobalID is invalid, resource doesn't exist", "Subnet", subnet.Spec.NetworkGlobalID)
 				// TODO: take some action when this is invalid
 				return false
 			}
+			r.Log.Info("SetupWithManager - addSubnetToTree")
 			if ok, err := r.addSubnetToTree(subnet); !ok {
-				r.Log.Error(err, "Integrity of the subnet is invalid", "Subnet", subnet)
+				r.Log.Error(err, "Integrity of the subnet is invalid", "Subnet", subnet.ObjectMeta.Name)
 				// TODO: take some action when this is invalid
-				subnet.Status.Messages = append(subnet.Status.Messages, err.Error())
+				return false
+			}
+			r.Log.Info("SetupWithManager - checkIPIntegrity")
+			if ok, err := r.checkIPIntegrity(subnet); !ok {
+				r.Log.Error(err, "IP Integrity of the subnet is invalid", "Subnet", subnet.ObjectMeta.Name)
+				// TODO: take some action when this is invalid
 				return false
 			}
 			return true

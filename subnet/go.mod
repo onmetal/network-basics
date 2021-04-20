@@ -7,6 +7,8 @@ require (
 	github.com/go-logr/logr v0.1.0
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.8.1
+	github.com/pkg/errors v0.8.1
+	go-cidr v0.0.0-00010101000000-000000000000
 	k8s.io/api v0.17.2 // indirect
 	k8s.io/apimachinery v0.17.2
 	k8s.io/client-go v0.17.2
@@ -14,3 +16,5 @@ require (
 )
 
 replace gardener/networkGlobal => github.com/onmetal/network-basics/networkGlobal v0.0.0-20210317165632-fd7bef291c78
+
+replace go-cidr => github.com/apparentlymart/go-cidr v1.0.1
