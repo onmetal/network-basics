@@ -4,7 +4,7 @@ metadata:
   name: sub1235
 spec:
   ID: sub1235
-  Type: IPv4
+  type: IPv4
   cidr: 10.12.35.0/24
   networkGlobalID: customer1
   partitionID: Frankfurt

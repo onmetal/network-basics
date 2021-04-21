@@ -4,7 +4,7 @@ metadata:
   name: tbn1
 spec:
   ID: tbn1
-  Type: IPv4
+  type: IPv4
   cidr: 10.12.34.0/25
   networkGlobalID: customer1
   partitionID: Frankfurt
