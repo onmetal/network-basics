@@ -28,17 +28,20 @@ type SubnetSpec struct {
 	// ID represents the subnet id
 	ID string `json:"ID,omitempty"`
 
+	// NetworkGlobal represents the network which belongs to the subnet
+	NetworkGlobalID string `json:"networkGlobalID,omitempty"`
+
+	// Region represents the location of the physical servers
+	Region []string `json:"region,omitempty"`
+
+	// AvailabilityZone represents zone of the physical servers
+	AvailabilityZone []string `json:"availabilityZone,omitempty"`
+
 	// Type represents whether it is an IPv4 or IPv6
 	Type string `json:"type,omitempty"`
 
 	// CIDR represents the Ip Adress Range
 	CIDR string `json:"cidr,omitempty"`
-
-	// NetworkGlobal represents the network which belongs to the subnet
-	NetworkGlobalID string `json:"networkGlobalID,omitempty"`
-
-	// PartiionID represents the location of the physical servers
-	PartitionID string `json:"partitionID,omitempty"`
 
 	// SubnetParentID represents the parent of the subnet if present
 	SubnetParentID string `json:"subnetParentID,omitempty"`
@@ -46,6 +49,10 @@ type SubnetSpec struct {
 
 // SubnetStatus defines the observed state of Subnet
 type SubnetStatus struct {
+	// Specific represents the specific of the subnet
+	// E.g. local, region, multiregion
+	Specific string `json:"specific,omitempty"`
+
 	// Capacity represents the capacity of the subnet
 	Capacity int `json:"capacity,omitempty"`
 

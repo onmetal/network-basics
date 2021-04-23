@@ -32,6 +32,9 @@ import (
 const (
 	SubnetFinalizerName  = "core.gardener.cloud/subnet"
 	LabelTreeDepthSuffix = ".tree/depth"
+	SpecificLocal        = "local"
+	SpecificRegion       = "region"
+	SpecificMultiregion  = "mutliregion"
 )
 
 // SubnetReconciler reconciles a Subnet object
@@ -66,10 +69,26 @@ func (r *SubnetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Add finalizer on the Subnet object if not added already.
+	// Add the specific to the Subnet status
 	if r.Subnet.DeletionTimestamp.IsZero() {
 		err := r.addSubnetFinalizer()
 		if err != nil {
 			log.Error(err, "Can't add the finalizer", "Subnet", r.Subnet.Name)
+			return ctrl.Result{}, err
+		}
+		err = r.addSpecific()
+		if err != nil {
+			log.Error(err, "Can't add the Specific to the status", "Subnet", r.Subnet.Name)
+			return ctrl.Result{}, err
+		}
+		err = r.updateSubnetStatusCapacity()
+		if err != nil {
+			log.Error(err, "Can't update Capacity", "Subnet", r.Subnet.Name)
+			return ctrl.Result{}, err
+		}
+		err = r.updateSubnetStatusCapacityLeft()
+		if err != nil {
+			log.Error(err, "Can't update CapacityLeft", "Subnet", r.Subnet.Name)
 			return ctrl.Result{}, err
 		}
 	}

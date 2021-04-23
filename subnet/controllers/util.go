@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 
 	netGlo "gardener/networkGlobal/api/v1"
@@ -138,11 +139,12 @@ func (r *SubnetReconciler) addSubnetToTree(obj metav1.Object) (bool, error) {
 		if err := r.Get(ctx, types.NamespacedName{Name: parentID, Namespace: subnet.Namespace}, subnetParent); err != nil {
 			return false, errors.New("ParentID not valid because parent resource does not exist")
 		}
-		if ok, err := r.IsPartitionIDValid(*subnet, *subnetParent); !ok {
-			r.Log.Error(err, "PartitionID not valid", "Subnet", subnet.Spec.PartitionID)
-			return false, err
+		if ok := isChildValid(*&subnet.Spec.Region, *&subnetParent.Spec.Region); !ok {
+			return false, errors.New("Region range of Subnet does not fit in region range of parent")
 		}
-		r.Log.Info("PartitionID valid", "Subnet", subnet.Spec.PartitionID)
+		if ok := isChildValid(*&subnet.Spec.AvailabilityZone, *&subnetParent.Spec.AvailabilityZone); !ok {
+			return false, errors.New("AvailabilityZone range of Subnet does not fit in AvailabilityZone range of parent")
+		}
 
 		newLabels[subnet.Name+LabelTreeDepthSuffix] = "0"
 		oldLables := subnetParent.GetLabels()
@@ -169,13 +171,6 @@ func (r *SubnetReconciler) addSubnetToTree(obj metav1.Object) (bool, error) {
 	return true, nil
 }
 
-func (r *SubnetReconciler) IsPartitionIDValid(subnet corev1.Subnet, subnetParent corev1.Subnet) (bool, error) {
-	if subnet.Spec.PartitionID != subnetParent.Spec.PartitionID {
-		return false, errors.New("PartitionID not valid because it doesn't matches the parent subnet PartitionID")
-	}
-	return true, nil
-}
-
 func (r *SubnetReconciler) IsSubnetLeafNode(obj metav1.Object) (bool, error) {
 	ctx := context.Background()
 	subnet, ok := obj.(*corev1.Subnet)
@@ -199,4 +194,62 @@ func (r *SubnetReconciler) IsSubnetLeafNode(obj metav1.Object) (bool, error) {
 	}
 	r.Log.Info("Deletion accapted", "Name", subnetList.ListMeta)
 	return true, nil
+}
+
+func isChildValid(subnet, subnetParent []string) bool {
+
+	subnetList := subnet
+	parentList := subnetParent
+
+	helpMap := make(map[string]int)
+
+	for i, parentElement := range parentList {
+		helpMap[parentElement] = i
+	}
+
+	for _, subnetElement := range subnetList {
+		if _, contains := helpMap[subnetElement]; !contains {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (r *SubnetReconciler) addSpecific() error {
+	r.Log.Info("Adding Specific")
+	ctx := context.Background()
+	subnet := &v1.Subnet{}
+	err := r.Get(ctx, r.Request.NamespacedName, subnet)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	clone := subnet.DeepCopy()
+
+	regionMembers := len(subnet.Spec.Region)
+	azMembers := len(subnet.Spec.AvailabilityZone)
+	r.Log.Info(fmt.Sprintf("region member len: %d", regionMembers))
+	r.Log.Info(fmt.Sprintf("AZ member len: %d", azMembers))
+	switch {
+	case regionMembers == 1 && azMembers == 1:
+		r.Log.Info("Specific: local")
+		clone.Status.Specific = SpecificLocal
+
+	case regionMembers > 1 && azMembers == 1:
+		r.Log.Info("Specific: region")
+		clone.Status.Specific = SpecificRegion
+
+	case regionMembers >= 1 && azMembers > 1:
+		r.Log.Info("Specific: multiregion")
+		clone.Status.Specific = SpecificMultiregion
+	}
+
+	err = r.Patch(ctx, clone, client.MergeFrom(subnet))
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+
+	r.Subnet = clone
+	return nil
 }

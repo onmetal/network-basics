@@ -37,6 +37,11 @@ spec:
             ID:
               description: ID represents the subnet id
               type: string
+            availabilityZone:
+              description: AvailabilityZone represents zone of the physical servers
+              items:
+                type: string
+              type: array
             cidr:
               description: CIDR represents the Ip Adress Range
               type: string
@@ -44,9 +49,11 @@ spec:
               description: NetworkGlobal represents the network which belongs to the
                 subnet
               type: string
-            partitionID:
-              description: PartiionID represents the location of the physical servers
-              type: string
+            region:
+              description: Region represents the location of the physical servers
+              items:
+                type: string
+              type: array
             subnetParentID:
               description: SubnetParentID represents the parent of the subnet if present
               type: string
@@ -69,6 +76,10 @@ spec:
               items:
                 type: string
               type: array
+            specific:
+              description: Specific represents the specific of the subnet E.g. local,
+                region, multiregion
+              type: string
           type: object
       type: object
   version: v1

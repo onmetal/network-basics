@@ -4,7 +4,9 @@ metadata:
   name: topsubnet
 spec:
   ID: topsubnet
+  networkGlobalID: customer1
+  region: [EU-West]
+  availabilityZone: [A, B, C]
   type: IPv4
   cidr: 10.12.0.0/16
-  networkGlobalID: customer1
-  partitionID: Frankfurt
+  

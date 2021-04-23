@@ -19,8 +19,6 @@ import (
 )
 
 func (r SubnetReconciler) checkIPIntegrity(obj metav1.Object) (bool, error) {
-	// just do it once here, so you don't have to do it in each method
-	// you should also apply it to the util
 	ctx := context.Background()
 	subnet, ok := obj.(*corev1.Subnet)
 	if !ok {
@@ -28,11 +26,6 @@ func (r SubnetReconciler) checkIPIntegrity(obj metav1.Object) (bool, error) {
 	}
 	log := r.Log.WithValues("checkIPIntegrity", fmt.Sprintf("Subnet: %s ,cidr: %s", subnet.Spec.ID, subnet.Spec.CIDR))
 
-	// TODO
-	// add logs
-	// check if there is even a parent
-	// if nono just check the subnet level integrity
-	// if yes checkParentCidrRange + subnet level integrity
 	if subnet.Spec.SubnetParentID != "" {
 		log.Info("Subnet has Parent")
 		// get parent resource
@@ -66,13 +59,6 @@ func (r SubnetReconciler) checkIPIntegrity(obj metav1.Object) (bool, error) {
 			return false, err
 		}
 
-		// update subnet status
-		log.Info("update subnet status")
-		prefixSize, _ := ipnetSubnet.Mask.Size()
-		if err := r.updateSubnetStatusCapacity(subnet, prefixSize); err != nil {
-			return false, err
-		}
-
 	} else {
 		log.Info("Subnet does not has Parent")
 		log.Info("validate cidr")
@@ -93,13 +79,6 @@ func (r SubnetReconciler) checkIPIntegrity(obj metav1.Object) (bool, error) {
 			if err != nil {
 				return false, err
 			}
-		}
-
-		// update subnet status
-		log.Info("update subnet status")
-		prefixSize, _ := ipnetSubnet.Mask.Size()
-		if err := r.updateSubnetStatusCapacity(subnet, prefixSize); err != nil {
-			return false, err
 		}
 	}
 
@@ -123,11 +102,12 @@ func validateCidr(cidr string) (net.IP, *net.IPNet, error) {
 }
 
 func (r SubnetReconciler) getSubtreeLevelCidrRanges(subnet *corev1.Subnet) ([]*net.IPNet, error) {
-
+	clone := subnet.DeepCopy()
 	var cidrnets []*net.IPNet
 
 	// get the path of the subnet to root and delete own entry
-	labels := subnet.GetLabels()
+	labels := clone.GetLabels()
+	r.Log.Info(fmt.Sprint("Labels: ", labels))
 	delete(labels, subnet.Name+LabelTreeDepthSuffix)
 
 	// find each subnet that has the same path, that are the siblings
@@ -140,15 +120,12 @@ func (r SubnetReconciler) getSubtreeLevelCidrRanges(subnet *corev1.Subnet) ([]*n
 			client.MatchingLabels{key: value},
 		}
 	}
-	// TODO
-	// What happens when list is empty?
+
 	if err := r.List(context.Background(), subnetList, opts...); err != nil {
 		r.Log.Info("List is empty")
 		return cidrnets, err
 	}
 
-	// TODO
-	// when subnet list only has one elment, than there are no siblings
 	if len(subnetList.Items) == 1 {
 		r.Log.Info("Subnet does not has siblings")
 		return cidrnets, nil
@@ -183,51 +160,35 @@ func validateCidrOverlap(ipNetSubnet *net.IPNet, cidrnets []*net.IPNet) error {
 	return nil
 }
 
-func (r *SubnetReconciler) updateSubnetStatusCapacity(subnet *corev1.Subnet, prefixSize int) error {
-	ctx := context.Background()
-	//subnet := &v1.Subnet{}
-	//err := r.Get(ctx, r.Request.NamespacedName, subnet)
-	//if err != nil {
-	//	r.Log.Error(err, "not found")
-	//	return client.IgnoreNotFound(err)
-	//}
-
-	clone := subnet.DeepCopy()
-
-	// TODO
-	// differentiate between ipv4 and ipv6
-	// remove magic numbers
-	var capacity int
-	if subnet.Spec.Type == "IPv4" {
-		capacity = 32 - prefixSize
-		r.Log.Info(fmt.Sprintf("Capacity IPv4: %d", capacity))
-	} else {
-		capacity = 128 - prefixSize
-	}
-
-	capacity = powInt(2, capacity)
-
-	clone.Status.Capacity = capacity
-
-	err := r.Patch(ctx, clone, client.MergeFrom(subnet))
-	if err != nil {
-		return client.IgnoreNotFound(err)
-	}
-
-	r.Subnet = clone
-	return nil
-}
-
-func (r *SubnetReconciler) updateSubnetStatusCapacityLeft(msgs []string) error {
+func (r *SubnetReconciler) updateSubnetStatusCapacity() error {
 	ctx := context.Background()
 	subnet := &v1.Subnet{}
 	err := r.Get(ctx, r.Request.NamespacedName, subnet)
 	if err != nil {
 		return client.IgnoreNotFound(err)
 	}
-
 	clone := subnet.DeepCopy()
-	clone.Status.Messages = msgs
+	prefixSize := getMaskSize(subnet.Spec.CIDR)
+
+	// TODO
+	// remove magic numbers
+	var capacity int
+	if subnet.Spec.Type == "IPv4" {
+		capacity = 32 - prefixSize
+	} else if subnet.Spec.Type == "IPv6" {
+		// 2^63 is the highest value for integer
+		if prefixSize < 63 {
+			capacity = 128 - prefixSize
+		} else {
+			return nil
+		}
+
+	} else {
+		return errors.New("the spec field type is invalid")
+	}
+
+	capacity = powInt(2, capacity)
+	clone.Status.Capacity = capacity
 
 	err = r.Patch(ctx, clone, client.MergeFrom(subnet))
 	if err != nil {
@@ -238,6 +199,61 @@ func (r *SubnetReconciler) updateSubnetStatusCapacityLeft(msgs []string) error {
 	return nil
 }
 
+func (r *SubnetReconciler) updateSubnetStatusCapacityLeft() error {
+	ctx := context.Background()
+	subnet := &v1.Subnet{}
+	err := r.Get(ctx, r.Request.NamespacedName, subnet)
+	if err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	clone := subnet.DeepCopy()
+
+	subnetParent := &corev1.Subnet{}
+	labels := subnet.GetLabels()
+	delete(labels, subnet.Spec.NetworkGlobalID+LabelTreeDepthSuffix)
+	r.Log.Info(fmt.Sprint("Labels: ", labels))
+
+	for key, _ := range labels {
+		subnetName := getName(key)
+
+		if subnetName == subnet.Name || len(labels) == 1 {
+			clone.Status.CapacityLeft = subnet.Status.Capacity
+			r.Log.Info(fmt.Sprintf("Capacity from %s: %d", subnetName, clone.Status.CapacityLeft))
+
+			err := r.Patch(ctx, clone, client.MergeFrom(subnet))
+			if err != nil {
+				return client.IgnoreNotFound(err)
+			}
+
+		} else {
+			if err := r.Get(ctx, types.NamespacedName{Name: subnetName, Namespace: subnet.Namespace}, subnetParent); err != nil {
+				err = errors.New(fmt.Sprintf("Subnet CapacityLeft cannot be updated because parent Subnet %s not found", subnetName))
+				return err
+			}
+
+			cloneParent := subnetParent.DeepCopy()
+			cloneParent.Status.CapacityLeft = subnetParent.Status.Capacity - subnet.Status.Capacity
+
+			err := r.Patch(ctx, cloneParent, client.MergeFrom(subnetParent))
+			if err != nil {
+				return client.IgnoreNotFound(err)
+			}
+		}
+	}
+	return nil
+}
+
 func powInt(x, y int) int {
 	return int(math.Pow(float64(x), float64(y)))
+}
+
+func getName(name string) string {
+	return name[0 : len(name)-len(LabelTreeDepthSuffix)]
+}
+
+func getMaskSize(ip string) int {
+	var size int
+	_, ipnet, _ := net.ParseCIDR(ip)
+	size, _ = ipnet.Mask.Size()
+	return size
 }
