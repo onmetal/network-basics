@@ -81,6 +81,9 @@ func (r *SubnetReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			log.Error(err, "Can't add the Specific to the status", "Subnet", r.Subnet.Name)
 			return ctrl.Result{}, err
 		}
+		// TODO
+		// updateSubnetStatusCapacity() and updateSubnetStatusCapacityLeft() might be in the wrong place
+		// they should be called somewhere else
 		err = r.updateSubnetStatusCapacity()
 		if err != nil {
 			log.Error(err, "Can't update Capacity", "Subnet", r.Subnet.Name)
