@@ -199,6 +199,8 @@ func (r *SubnetReconciler) updateSubnetStatusCapacity() error {
 	return nil
 }
 
+// TODO
+// Does not work correctly futher testing required
 func (r *SubnetReconciler) updateSubnetStatusCapacityLeft() error {
 	ctx := context.Background()
 	subnet := &v1.Subnet{}
